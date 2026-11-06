@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Corrida de Soma</title>
+<style>
+  :root{
+    --bg1:#0f172a; --bg2:#1e1b4b; --card:rgba(255,255,255,.07); --card-b:rgba(255,255,255,.12);
+    --text:#e8ecf8; --muted:#9aa4c4; --accent:#8b5cf6; --accent2:#22d3ee; --ok:#34d399; --bad:#f87171;
+    --p0:#34d399; --p1:#60a5fa; --p2:#fbbf24; --radius:18px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--text); min-height:100vh;
+    background:radial-gradient(1200px 700px at 10% -10%,#312e81 0,transparent 60%),
+               radial-gradient(1000px 600px at 110% 10%,#0e7490 0,transparent 55%),
+               linear-gradient(160deg,var(--bg1),var(--bg2));
+    background-attachment:fixed;
+  }
+  .app{max-width:980px;margin:0 auto;padding:20px 16px 60px}
+  header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+  h1{margin:0;font-size:clamp(1.4rem,4vw,2rem);letter-spacing:-.02em}
+  h1 span{background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);font-size:.9rem;margin-top:2px}
+  .card{background:var(--card);border:1px solid var(--card-b);border-radius:var(--radius);padding:18px;backdrop-filter:blur(10px);box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .card h2{margin:0 0 12px;font-size:1.05rem}
+  [hidden]{display:none!important}
+
+  /* Setup */
+  .modes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+  .mode input{position:absolute;opacity:0;pointer-events:none}
+  .mode span{display:block;text-align:center;padding:14px 8px;border-radius:14px;border:2px solid var(--card-b);cursor:pointer;transition:.2s;background:rgba(255,255,255,.04)}
+  .mode span b{display:block;font-size:1.6rem;margin-bottom:4px}
+  .mode span small{color:var(--muted)}
+  .mode input:checked + span{border-color:var(--accent);background:rgba(139,92,246,.22);transform:translateY(-2px)}
+  .mode input:focus-visible + span{outline:2px solid var(--accent2)}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .field label{display:block;font-size:.82rem;color:var(--muted);margin-bottom:5px}
+  input[type=number],input[type=text],select{
+    width:100%;padding:11px 12px;border-radius:12px;border:1px solid var(--card-b);
+    background:rgba(0,0,0,.28);color:var(--text);font-size:1rem;outline:none}
+  input:focus,select:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(34,211,238,.2)}
+  .row{margin-top:14px}
+  .names{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+  .presets{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 14px}
+  .chip{border:1px solid var(--card-b);background:rgba(255,255,255,.06);color:var(--text);padding:6px 12px;border-radius:999px;cursor:pointer;font-size:.85rem}
+  .chip:hover{background:rgba(255,255,255,.14)}
+  .chip.rand{background:linear-gradient(135deg,var(--accent),#6366f1);border:0;font-weight:700}
+  .chip.rand:hover{background:linear-gradient(135deg,#9d77ff,#7a7dff)}
+  .errors{margin-top:14px;padding:10px 14px;border-radius:12px;background:rgba(248,113,113,.14);border:1px solid rgba(248,113,113,.4);color:#fecaca;font-size:.9rem}
+  .errors ul,.notes ul{margin:0;padding-left:18px}
+  .notes{margin-top:14px;padding:10px 14px;border-radius:12px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.35);color:#fde68a;font-size:.9rem}
+
+  /* Buttons */
+  button{font:inherit;color:inherit}
+  .btn{border:0;border-radius:12px;padding:11px 16px;cursor:pointer;font-weight:600;transition:transform .12s,opacity .2s,background .2s;background:rgba(255,255,255,.1);border:1px solid var(--card-b)}
+  .btn:hover:not(:disabled){transform:translateY(-1px);background:rgba(255,255,255,.18)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),#6366f1);border:0;box-shadow:0 6px 18px rgba(99,102,241,.45)}
+  .btn.primary:hover:not(:disabled){background:linear-gradient(135deg,#9d77ff,#7a7dff)}
+  .btn.big{width:100%;padding:14px;font-size:1.05rem;margin-top:16px}
+
+  /* Game */
+  .rules-pill{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+  .pill{font-size:.82rem;padding:5px 11px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid var(--card-b);color:var(--muted)}
+  .pill b{color:var(--text)}
+  .score{text-align:center;padding:22px 16px}
+  .score .label{color:var(--muted);font-size:.85rem;text-transform:uppercase;letter-spacing:.12em}
+  .total{font-size:clamp(3.5rem,16vw,6.5rem);font-weight:800;line-height:1;margin:6px 0;font-variant-numeric:tabular-nums}
+  .total small{font-size:.35em;color:var(--muted);font-weight:600}
+  .remain{color:var(--muted)}
+  .bar{height:16px;border-radius:999px;background:rgba(0,0,0,.35);overflow:hidden;margin:16px 0 6px;border:1px solid var(--card-b)}
+  .bar i{display:block;height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .5s cubic-bezier(.2,.8,.2,1)}
+  .barinfo{display:flex;justify-content:space-between;font-size:.8rem;color:var(--muted)}
+  .toast{margin-top:14px;min-height:42px;display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid var(--card-b)}
+  .toast.pop{animation:pop .5s cubic-bezier(.2,1.6,.4,1)}
+  .toast .n{font-size:1.3rem;font-weight:800;color:var(--accent2)}
+  @keyframes pop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+
+  .players{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:16px 0}
+  .player{padding:12px 14px;border-radius:14px;border:2px solid var(--card-b);background:rgba(255,255,255,.05);transition:.25s;position:relative;opacity:.7}
+  .player .nm{display:flex;align-items:center;gap:8px;font-weight:700}
+  .dot{width:12px;height:12px;border-radius:50%;background:var(--c);flex:none;box-shadow:0 0 10px var(--c)}
+  .player .st{font-size:.8rem;color:var(--muted);margin-top:4px}
+  .player.active{opacity:1;border-color:var(--c);background:color-mix(in srgb,var(--c) 18%,transparent);transform:translateY(-3px);box-shadow:0 8px 24px color-mix(in srgb,var(--c) 35%,transparent)}
+  .player.active::after{content:"é a vez";position:absolute;top:-10px;right:10px;font-size:.68rem;font-weight:800;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--c);color:#0b1020}
+  .player.winner{opacity:1;border-color:var(--c)}
+
+  .turn{font-size:1.1rem;margin-bottom:12px;font-weight:600}
+  .turn b{color:var(--c,var(--accent2))}
+  .nums{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:10px}
+  .num{aspect-ratio:1;border-radius:14px;border:2px solid var(--card-b);background:rgba(255,255,255,.07);font-size:1.25rem;font-weight:800;cursor:pointer;transition:.15s;font-variant-numeric:tabular-nums}
+  .num:hover:not(:disabled){transform:translateY(-3px) scale(1.05);background:var(--accent);border-color:transparent;box-shadow:0 8px 20px rgba(139,92,246,.5)}
+  .num:active:not(:disabled){transform:scale(.95)}
+  .num:disabled{opacity:.28;cursor:not-allowed}
+  .num.last{border-color:var(--accent2);box-shadow:inset 0 0 0 2px rgba(34,211,238,.35)}
+  .cpu{text-align:center;padding:10px 0}
+  .cpu .slot{display:inline-flex;align-items:center;justify-content:center;width:120px;height:120px;border-radius:24px;font-size:3.4rem;font-weight:800;background:rgba(0,0,0,.35);border:3px solid var(--p1);font-variant-numeric:tabular-nums}
+  .cpu .slot.spin{animation:shake .25s infinite;border-color:var(--accent2);box-shadow:0 0 30px rgba(34,211,238,.5)}
+  .cpu .slot.reveal{animation:pop .5s cubic-bezier(.2,1.6,.4,1);border-color:var(--ok);box-shadow:0 0 30px rgba(52,211,153,.6)}
+  @keyframes shake{0%{transform:rotate(-3deg) scale(1.02)}50%{transform:rotate(3deg) scale(.98)}100%{transform:rotate(-3deg) scale(1.02)}}
+  .cpu p{color:var(--muted);margin:12px 0 0}
+
+  .hist-wrap{max-height:320px;overflow:auto;border-radius:12px;border:1px solid var(--card-b)}
+  table{width:100%;border-collapse:collapse;font-size:.92rem}
+  th,td{padding:9px 12px;text-align:left}
+  thead th{position:sticky;top:0;background:#1b1f45;color:var(--muted);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em}
+  tbody tr{border-top:1px solid var(--card-b)}
+  tbody tr.flash{animation:flash 1s}
+  @keyframes flash{from{background:rgba(34,211,238,.35)}to{background:transparent}}
+  td.v{font-weight:800;color:var(--accent2)}
+  td.t{font-variant-numeric:tabular-nums;font-weight:700}
+  .empty{padding:22px;text-align:center;color:var(--muted)}
+  .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .stack{display:grid;gap:16px}
+
+  /* Overlay */
+  .overlay{position:fixed;inset:0;background:rgba(5,8,25,.78);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50;overflow:hidden}
+  .modal{position:relative;z-index:2;max-width:440px;width:100%;text-align:center;padding:30px 24px;border-radius:24px;background:linear-gradient(160deg,#272b66,#16193f);border:1px solid var(--card-b);box-shadow:0 30px 80px rgba(0,0,0,.6);animation:pop .5s cubic-bezier(.2,1.4,.4,1)}
+  .modal .trophy{font-size:4rem;animation:bounce 1.2s infinite}
+  @keyframes bounce{50%{transform:translateY(-10px)}}
+  .modal h2{margin:8px 0 4px;font-size:1.7rem}
+  .modal p{color:var(--muted);margin:4px 0 18px}
+  .modal .actions{display:grid;gap:10px}
+  .confetti{position:absolute;top:-20px;width:10px;height:16px;opacity:.9;animation:fall linear forwards;z-index:1}
+  @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
+
+  @media (max-width:560px){
+    .modes{gap:6px}.mode span{padding:10px 4px;font-size:.85rem}.mode span b{font-size:1.3rem}
+    .grid3{grid-template-columns:1fr}
+    .card{padding:14px}
+    .controls{grid-template-columns:1fr 1fr}
+    .cpu .slot{width:96px;height:96px;font-size:2.6rem}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div>
+      <h1>🏁 Corrida de <span>Soma</span></h1>
+      <div class="sub">Chegue exatamente à pontuação final e vença — passou da meta, errou!</div>
+    </div>
+  </header>
+
+  <!-- ================= CONFIGURAÇÃO ================= -->
+  <section id="setup" class="card">
+    <h2>1. Escolha a modalidade</h2>
+    <div class="modes" id="modes">
+      <label class="mode"><input type="radio" name="mode" value="1" checked><span><b>🤖</b>Jogador × Computador<br><small>1 humano</small></span></label>
+      <label class="mode"><input type="radio" name="mode" value="2"><span><b>👥</b>Dois jogadores<br><small>2 humanos</small></span></label>
+      <label class="mode"><input type="radio" name="mode" value="3"><span><b>👨‍👩‍👦</b>Três jogadores<br><small>3 humanos</small></span></label>
+    </div>
+
+    <h2>2. Defina as regras</h2>
+    <div class="presets" id="presets"></div>
+    <div class="grid3">
+      <div class="field"><label for="fFinal">Pontuação final</label><input id="fFinal" type="number" inputmode="numeric" value="30" min="1" step="1"></div>
+      <div class="field"><label for="fMin">Número mínimo</label><input id="fMin" type="number" inputmode="numeric" value="1" min="1" step="1"></div>
+      <div class="field"><label for="fMax">Número máximo</label><input id="fMax" type="number" inputmode="numeric" value="5" min="1" step="1"></div>
+    </div>
+    <div class="row field">
+      <label for="fWin">Modalidade de vitória</label>
+      <select id="fWin"><option value="exact">Vence quem alcançar exatamente a pontuação final (passar da meta é erro e faz perder)</option></select>
+    </div>
+
+    <h2 style="margin-top:18px">3. Nomes dos jogadores</h2>
+    <div class="names" id="names"></div>
+
+    <div id="errors" class="errors" hidden></div>
+    <div id="notes" class="notes" hidden></div>
+    <button id="btnStart" class="btn primary big">▶ Iniciar partida</button>
+  </section>
+
+  <!-- ================= PARTIDA ================= -->
+  <section id="game" hidden>
+    <div class="rules-pill" id="rulesPill"></div>
+
+    <div class="stack">
+      <div class="card score">
+        <div class="label">Placar acumulado</div>
+        <div class="total"><span id="total">0</span> <small>/ <span id="finalShow">0</span></small></div>
+        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="barA11y"><i id="barFill"></i></div>
+        <div class="barinfo"><span>0</span><span id="barEnd"></span></div>
+        <div id="toast" class="toast"><span>Nenhuma jogada ainda</span></div>
+      </div>
+
+      <div>
+        <div class="players" id="players"></div>
+        <div class="card" id="play">
+          <div class="turn" id="turnTxt"></div>
+          <div id="numsBox"><div class="nums" id="nums"></div></div>
+          <div id="cpuBox" class="cpu" hidden>
+            <div class="slot" id="cpuNum">?</div>
+            <p id="cpuMsg"></p>
+            <button class="btn primary" id="btnCpu" style="margin-top:12px">🎲 Sortear número do computador</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Controles</h2>
+        <div class="controls">
+          <button class="btn" id="btnUndoMove">↶ Desfazer jogada</button>
+          <button class="btn" id="btnUndoRound">⏪ Desfazer rodada</button>
+          <button class="btn" id="btnRestart">🔄 Reiniciar partida</button>
+          <button class="btn" id="btnNew">🆕 Nova partida</button>
+          <button class="btn" id="btnRules">⚙ Alterar regras</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Histórico de jogadas</h2>
+        <div class="hist-wrap" id="histWrap">
+          <table>
+            <thead><tr><th>#</th><th>Jogador</th><th>Escolheu</th><th>Total</th></tr></thead>
+            <tbody id="hist"></tbody>
+          </table>
+          <div class="empty" id="histEmpty">As jogadas aparecerão aqui.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ================= FIM DE JOGO ================= -->
+<div id="overlay" class="overlay" hidden>
+  <div class="modal">
+    <div class="trophy" id="ovIcon">🏆</div>
+    <h2 id="ovTitle"></h2>
+    <p id="ovText"></p>
+    <div class="actions">
+      <button class="btn primary" id="ovAgain">🔄 Jogar novamente</button>
+      <button class="btn" id="ovRules">⚙ Alterar regras</button>
+      <button class="btn" id="ovUndo">↶ Desfazer última jogada</button>
+      <button class="btn" id="ovClose">Ver placar e histórico</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   CORRIDA DE SOMA
+   Organização:
+     1. Configuração/constantes
+     2. Estado (cfg + moves). Todo o resto é DERIVADO de "moves".
+     3. Lógica de jogo (derive, commit, undo, cpu)
+     4. Tela de configuração (validação)
+     5. Renderização
+     6. Eventos
+   ===================================================================== */
+
+/* ---------- 1. Constantes ---------- */
+const LIMITS = { finalMax: 10000, rangeMax: 100 };       // limites de validação
+const MODES = { 1: { n: 2 }, 2: { n: 2 }, 3: { n: 3 } };  // jogadores por modalidade
+const PRESETS = [
+  { label: '20 (1–5)', f: 20, a: 1, b: 5 },
+  { label: '30 (1–9)', f: 30, a: 1, b: 9 },
+  { label: '50 (1–10)', f: 50, a: 1, b: 10 },
+  { label: '100 (1–10)', f: 100, a: 1, b: 10 },
+];
+const CPU_SPIN_MS = 1300;    // duração do "sorteio" animado
+const CPU_REVEAL_MS = 650;   // tempo mostrando o número sorteado
+
+/* ---------- 2. Estado ---------- */
+let cfg = null;          // { mode, final, min, max, players:[{name,cpu}] }
+let draft = { mode: 1, final: 30, min: 1, max: 5, names: ['', '', ''] };
+let moves = [];          // [{ p: índiceDoJogador, v: número, total: acumulado }]
+let locked = false;      // true durante a animação do computador (bloqueia cliques)
+let token = 0;           // invalida timers antigos
+let overlayDismissed = false;
+let prevLen = 0;         // para animar apenas jogadas novas
+let shownTotal = 0;      // valor atualmente exibido no placar (animação)
+let countRaf = 0;
+
+const $ = (s) => document.querySelector(s);
+const randInt = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+const color = (i) => `var(--p${i})`;
+
+/* ---------- 3. Lógica ---------- */
+function defaultName(mode, i) { return mode === 1 ? 'Você' : `Jogador ${i + 1}`; }
+
+function buildPlayers(mode, names) {
+  if (mode === 1) return [{ name: names[0] || 'Você', cpu: false }, { name: 'Computador', cpu: true }];
+  return Array.from({ length: MODES[mode].n }, (_, i) => ({ name: names[i] || `Jogador ${i + 1}`, cpu: false }));
+}
+
+// Tudo que a interface precisa é calculado a partir de cfg + moves.
+// Regras de fim de jogo:
+//   - total === meta  -> quem fez a jogada vence;
+//   - total  >  meta  -> quem fez a jogada ERROU e perde; os demais jogadores vencem.
+function derive() {
+  const n = cfg.players.length;
+  const last = moves.length ? moves[moves.length - 1] : null;
+  const total = last ? last.total : 0;
+  const won = !!last && total === cfg.final;
+  const over = !!last && total > cfg.final;
+  const range = [];
+  const safe = [];                               // jogadas que NÃO passam da meta
+  for (let v = cfg.min; v <= cfg.max; v++) { range.push(v); if (total + v <= cfg.final) safe.push(v); }
+  return {
+    n, total, won, over, range, safe,
+    turn: moves.length % n,
+    loser: over ? last.p : null,
+    winners: won ? [last.p] : over ? cfg.players.map((_, i) => i).filter((i) => i !== last.p) : [],
+    finished: won || over,
+  };
+}
+
+function commit(value) {
+  const s = derive();
+  if (s.finished) return false;
+  if (!Number.isInteger(value) || value < cfg.min || value > cfg.max) return false; // nunca fora do intervalo permitido
+  moves.push({ p: s.turn, v: value, total: s.total + value });
+  overlayDismissed = false;
+  render();
+  return true;
+}
+
+function humanPlay(value) {
+  if (locked) return;
+  const s = derive();
+  if (s.finished || cfg.players[s.turn].cpu) return;
+  if (!commit(value)) return;
+  const n = derive();
+  if (!n.finished && cfg.players[n.turn].cpu) startCpu(); // computador joga logo após o humano
+}
+
+function startCpu() {
+  const s = derive();
+  if (locked || s.finished || !cfg.players[s.turn].cpu) return;
+  locked = true;
+  const my = ++token;
+  const slot = $('#cpuNum');
+  slot.className = 'slot spin';
+  render();
+  const iv = setInterval(() => { slot.textContent = randInt(cfg.min, cfg.max); }, 70);
+  setTimeout(() => {
+    clearInterval(iv);
+    if (my !== token) return;
+    const cur = derive();
+    // Sorteio real com Math.random. O computador nunca passa da meta por vontade própria:
+    // sorteia só entre os números que não estouram. Se TODOS estouram (sobrou menos que o mínimo),
+    // é obrigado a sortear no intervalo completo e acaba errando.
+    const pool = cur.safe.length ? cur.safe : cur.range;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    slot.textContent = pick;
+    slot.className = 'slot reveal';
+    setTimeout(() => {
+      if (my !== token) return;
+      locked = false;
+      commit(pick);
+    }, CPU_REVEAL_MS);
+  }, CPU_SPIN_MS);
+}
+
+function undoMoves(count) {
+  if (locked || !moves.length) return;
+  moves.splice(moves.length - count, count);
+  overlayDismissed = false;
+  render();
+}
+function undoMove() { undoMoves(1); }
+function undoRound() {
+  if (!moves.length) return;
+  const n = cfg.players.length;
+  const roundStart = Math.floor((moves.length - 1) / n) * n; // início da última rodada (completa ou parcial)
+  undoMoves(moves.length - roundStart);
+}
+function restart() {
+  if (locked) return;
+  token++; moves = []; overlayDismissed = false; prevLen = 0;
+  render();
+}
+
+/* ---------- 4. Configuração ---------- */
+function selectedMode() { return +document.querySelector('input[name=mode]:checked').value; }
+
+function renderNameInputs() {
+  const mode = selectedMode();
+  const box = $('#names');
+  box.innerHTML = '';
+  const count = mode === 1 ? 1 : MODES[mode].n;
+  for (let i = 0; i < count; i++) {
+    const wrap = document.createElement('div'); wrap.className = 'field';
+    const lb = document.createElement('label'); lb.textContent = mode === 1 ? 'Seu nome' : `Jogador ${i + 1}`; lb.htmlFor = 'name' + i;
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.id = 'name' + i; inp.maxLength = 16; inp.placeholder = defaultName(mode, i); inp.value = draft.names[i] || '';
+    inp.addEventListener('input', () => { draft.names[i] = inp.value; });
+    wrap.append(lb, inp); box.append(wrap);
+  }
+}
+
+function readForm() {
+  const raw = (id) => $(id).value.trim();
+  const num = (id) => (raw(id) === '' ? NaN : Number(raw(id)));
+  const mode = selectedMode();
+  const count = mode === 1 ? 1 : MODES[mode].n;
+  const names = [];
+  for (let i = 0; i < count; i++) names.push(($('#name' + i).value || '').trim());
+  return { mode, final: num('#fFinal'), min: num('#fMin'), max: num('#fMax'), names };
+}
+
+function validate(f) {
+  const errors = [], notes = [];
+  if (!Number.isInteger(f.final) || !Number.isInteger(f.min) || !Number.isInteger(f.max)) {
+    errors.push('Preencha pontuação final, mínimo e máximo com números inteiros.');
+    return { errors, notes };
+  }
+  if (f.final < 1 || f.final > LIMITS.finalMax) errors.push(`A pontuação final deve estar entre 1 e ${LIMITS.finalMax}.`);
+  if (f.min < 1) errors.push('O número mínimo deve ser pelo menos 1.');
+  if (f.max < f.min) errors.push('O número máximo não pode ser menor que o mínimo.');
+  if (f.max - f.min + 1 > LIMITS.rangeMax) errors.push(`O intervalo permitido pode ter no máximo ${LIMITS.rangeMax} números.`);
+  const players = buildPlayers(f.mode, f.names).map((p) => p.name.toLowerCase());
+  if (new Set(players).size !== players.length) errors.push('Os jogadores precisam ter nomes diferentes.');
+  return { errors, notes };
+}
+
+function showList(el, items) {
+  el.hidden = !items.length;
+  el.innerHTML = '';
+  if (!items.length) return;
+  const ul = document.createElement('ul');
+  items.forEach((t) => { const li = document.createElement('li'); li.textContent = t; ul.append(li); });
+  el.append(ul);
+}
+
+function showSetup() {
+  token++; locked = false;
+  $('#game').hidden = true; $('#overlay').hidden = true; $('#setup').hidden = false;
+  document.querySelector(`input[name=mode][value="${draft.mode}"]`).checked = true;
+  $('#fFinal').value = draft.final; $('#fMin').value = draft.min; $('#fMax').value = draft.max;
+  renderNameInputs();
+  showList($('#errors'), []); showList($('#notes'), []);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Preenche o formulário com regras aleatórias: meta de 1 a 100, números de 1 a 15.
+function randomRules() {
+  const min = randInt(1, 15);
+  const max = randInt(min, 15);
+  $('#fFinal').value = randInt(1, 100);
+  $('#fMin').value = min;
+  $('#fMax').value = max;
+  showList($('#errors'), []);
+}
+
+function startGame() {
+  const f = readForm();
+  const { errors, notes } = validate(f);
+  showList($('#errors'), errors); showList($('#notes'), notes);
+  if (errors.length) return;
+  draft = { mode: f.mode, final: f.final, min: f.min, max: f.max, names: f.names.concat(['', '', '']).slice(0, 3) };
+  cfg = { mode: f.mode, final: f.final, min: f.min, max: f.max, players: buildPlayers(f.mode, f.names) };
+  token++; locked = false; moves = []; overlayDismissed = false; prevLen = 0; shownTotal = 0;
+  $('#setup').hidden = true; $('#game').hidden = false;
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ---------- 5. Renderização ---------- */
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function animateTotal(target) {
+  cancelAnimationFrame(countRaf);
+  const from = shownTotal, start = performance.now(), dur = 400;
+  const node = $('#total');
+  const step = (t) => {
+    const k = Math.min(1, (t - start) / dur);
+    shownTotal = Math.round(from + (target - from) * k);
+    node.textContent = shownTotal;
+    if (k < 1) countRaf = requestAnimationFrame(step); else { shownTotal = target; node.textContent = target; }
+  };
+  countRaf = requestAnimationFrame(step);
+}
+
+function render() {
+  const s = derive();
+  const grew = moves.length > prevLen;
+  const last = moves[moves.length - 1];
+
+  // Regras
+  const mname = cfg.mode === 1 ? 'Jogador × Computador' : cfg.mode === 2 ? '2 jogadores' : '3 jogadores';
+  const rp = $('#rulesPill'); rp.innerHTML = '';
+  [['Modo', mname], ['Meta', cfg.final], ['Números', `${cfg.min} a ${cfg.max}`], ['Vitória', 'soma exata (passou = erro)']].forEach(([k, v]) => {
+    const p = el('span', 'pill'); p.append(document.createTextNode(k + ': '), el('b', '', v)); rp.append(p);
+  });
+
+  // Placar
+  animateTotal(s.total);
+  $('#finalShow').textContent = cfg.final;
+  $('#barEnd').textContent = cfg.final;
+  const pct = Math.min(100, Math.round((s.total / cfg.final) * 100));
+  $('#barFill').style.width = pct + '%';
+  $('#barA11y').setAttribute('aria-valuenow', pct);
+
+  // Destaque da última jogada
+  const toast = $('#toast'); toast.innerHTML = '';
+  if (last) {
+    const pl = cfg.players[last.p];
+    toast.append(el('span', '', pl.name + ' escolheu'), el('span', 'n', '+' + last.v));
+    toast.style.borderColor = color(last.p);
+    if (grew) { toast.classList.remove('pop'); void toast.offsetWidth; toast.classList.add('pop'); }
+  } else { toast.append(el('span', '', 'Nenhuma jogada ainda')); toast.style.borderColor = ''; toast.classList.remove('pop'); }
+
+  // Jogadores
+  const pbox = $('#players'); pbox.innerHTML = '';
+  cfg.players.forEach((p, i) => {
+    const sum = moves.filter((m) => m.p === i).reduce((a, m) => a + m.v, 0);
+    const cnt = moves.filter((m) => m.p === i).length;
+    const isWinner = s.winners.includes(i);
+    const card = el('div', 'player' + (!s.finished && s.turn === i ? ' active' : '') + (isWinner ? ' winner' : ''));
+    card.style.setProperty('--c', color(i));
+    const mark = isWinner ? ' 🏆' : s.loser === i ? ' 💥 errou' : '';
+    const nm = el('div', 'nm'); nm.append(el('span', 'dot'), document.createTextNode((p.cpu ? '🤖 ' : '') + p.name + mark));
+    card.append(nm, el('div', 'st', `${cnt} jogada${cnt === 1 ? '' : 's'} · soma ${sum}`));
+    pbox.append(card);
+  });
+
+  // Área de jogada
+  const turnTxt = $('#turnTxt'), nums = $('#nums'), numsBox = $('#numsBox'), cpuBox = $('#cpuBox');
+  turnTxt.innerHTML = ''; nums.innerHTML = '';
+  turnTxt.style.setProperty('--c', color(s.turn));
+  if (s.won) {
+    turnTxt.append(el('b', '', cfg.players[s.winners[0]].name), document.createTextNode(' venceu a partida! 🎉'));
+  } else if (s.over) {
+    turnTxt.append(el('b', '', cfg.players[s.loser].name), document.createTextNode(' passou da meta e errou! 💥'));
+  } else {
+    const cur = cfg.players[s.turn];
+    if (cur.cpu) { turnTxt.append(document.createTextNode('Vez de '), el('b', '', cur.name)); }
+    else { turnTxt.append(document.createTextNode('Vez de '), el('b', '', cur.name), document.createTextNode(': escolha um número')); }
+  }
+  const cpuTurn = !s.finished && cfg.players[s.turn].cpu;
+  numsBox.hidden = cpuTurn;
+  cpuBox.hidden = !cpuTurn;
+  if (cpuTurn) {
+    $('#btnCpu').hidden = locked;
+    $('#cpuMsg').textContent = locked ? 'Sorteando um número…' : 'O computador está pronto para sortear.';
+    if (!locked) { const sl = $('#cpuNum'); sl.className = 'slot'; sl.textContent = '?'; }
+  } else {
+    for (let v = cfg.min; v <= cfg.max; v++) {
+      const b = el('button', 'num' + (last && last.v === v ? ' last' : ''), v);
+      b.type = 'button';
+      b.disabled = s.finished || locked;
+      b.title = 'Escolher ' + v;
+      b.addEventListener('click', () => humanPlay(v));
+      nums.append(b);
+    }
+  }
+
+  // Histórico
+  const tb = $('#hist'); tb.innerHTML = '';
+  moves.forEach((m, i) => {
+    const tr = el('tr', grew && i === moves.length - 1 ? 'flash' : '');
+    const who = el('td'); const d = el('span', 'dot'); d.style.setProperty('--c', color(m.p)); d.style.display = 'inline-block'; d.style.marginRight = '8px';
+    who.append(d, document.createTextNode(cfg.players[m.p].name));
+    tr.append(el('td', '', i + 1), who, el('td', 'v', '+' + m.v), el('td', 't', m.total));
+    tb.append(tr);
+  });
+  $('#histEmpty').hidden = moves.length > 0;
+  const hw = $('#histWrap'); hw.scrollTop = hw.scrollHeight;
+
+  // Controles
+  const none = !moves.length;
+  $('#btnUndoMove').disabled = locked || none;
+  $('#btnUndoRound').disabled = locked || none;
+  $('#btnRestart').disabled = locked;
+  $('#btnNew').disabled = locked;
+  $('#btnRules').disabled = locked;
+  $('#btnCpu').disabled = locked;
+
+  // Fim de jogo
+  const ov = $('#overlay');
+  if (s.finished && !overlayDismissed && !locked) {
+    const names = s.winners.map((i) => cfg.players[i].name).join(' e ');
+    const plural = s.winners.length > 1;
+    if (s.won) {
+      $('#ovIcon').textContent = '🏆';
+      $('#ovTitle').textContent = `${names} venceu!`;
+      $('#ovText').textContent = `Fechou a soma exata de ${cfg.final} em ${moves.length} jogadas.`;
+    } else {
+      $('#ovIcon').textContent = '💥';
+      $('#ovTitle').textContent = `${cfg.players[s.loser].name} errou!`;
+      $('#ovText').textContent = `A soma chegou a ${s.total}, passando da meta de ${cfg.final}. ${names} ${plural ? 'vencem' : 'vence'} a partida.`;
+    }
+    if (ov.hidden) { ov.hidden = false; if (s.winners.some((i) => !cfg.players[i].cpu)) confetti(); }
+  } else { ov.hidden = true; ov.querySelectorAll('.confetti').forEach((c) => c.remove()); }
+
+  prevLen = moves.length;
+}
+
+function confetti() {
+  const ov = $('#overlay');
+  const cols = ['#34d399', '#60a5fa', '#fbbf24', '#f472b6', '#a78bfa'];
+  for (let i = 0; i < 60; i++) {
+    const c = el('i', 'confetti');
+    c.style.left = Math.random() * 100 + '%';
+    c.style.background = cols[i % cols.length];
+    c.style.animationDuration = 2.5 + Math.random() * 2.5 + 's';
+    c.style.animationDelay = Math.random() * 1.2 + 's';
+    ov.append(c);
+  }
+}
+
+/* ---------- 6. Eventos ---------- */
+document.querySelectorAll('input[name=mode]').forEach((r) => r.addEventListener('change', () => { draft.mode = selectedMode(); renderNameInputs(); }));
+const randBtn = el('button', 'chip rand', '🎲 Gerar regras aleatórias');
+randBtn.type = 'button';
+randBtn.addEventListener('click', randomRules);
+$('#presets').append(randBtn);
+PRESETS.forEach((p) => {
+  const b = el('button', 'chip', p.label); b.type = 'button';
+  b.addEventListener('click', () => { $('#fFinal').value = p.f; $('#fMin').value = p.a; $('#fMax').value = p.b; });
+  $('#presets').append(b);
+});
+['#fFinal', '#fMin', '#fMax'].forEach((id) => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') startGame(); }));
+$('#btnStart').addEventListener('click', startGame);
+$('#btnCpu').addEventListener('click', startCpu);
+$('#btnUndoMove').addEventListener('click', undoMove);
+$('#btnUndoRound').addEventListener('click', undoRound);
+$('#btnRestart').addEventListener('click', restart);
+$('#btnNew').addEventListener('click', restart);        // nova partida com as mesmas regras
+$('#btnRules').addEventListener('click', showSetup);    // volta à configuração (regras e nomes editáveis)
+$('#ovAgain').addEventListener('click', restart);
+$('#ovRules').addEventListener('click', showSetup);
+$('#ovUndo').addEventListener('click', undoMove);
+$('#ovClose').addEventListener('click', () => { overlayDismissed = true; $('#overlay').hidden = true; });
+
+showSetup();
+</script>
+</body>
+</html>
