@@ -167,6 +167,13 @@
       <label for="fWin">Modalidade de vitória</label>
       <select id="fWin"><option value="exact">Vence quem alcançar exatamente a pontuação final (passar da meta é erro e faz perder)</option></select>
     </div>
+    <div class="row field" id="firstRow">
+      <label for="fFirst">Quem joga primeiro</label>
+      <select id="fFirst">
+        <option value="human">Eu jogo primeiro</option>
+        <option value="cpu">O computador joga primeiro (eu jogo em segundo)</option>
+      </select>
+    </div>
 
     <h2 style="margin-top:18px">3. Nomes dos jogadores</h2>
     <div class="names" id="names"></div>
@@ -268,7 +275,7 @@ const CPU_REVEAL_MS = 650;   // tempo mostrando o número sorteado
 
 /* ---------- 2. Estado ---------- */
 let cfg = null;          // { mode, final, min, max, players:[{name,cpu}] }
-let draft = { mode: 1, final: 30, min: 1, max: 5, names: ['', '', ''] };
+let draft = { mode: 1, final: 30, min: 1, max: 5, names: ['', '', ''], first: 'human' };
 let moves = [];          // [{ p: índiceDoJogador, v: número, total: acumulado }]
 let locked = false;      // true durante a animação do computador (bloqueia cliques)
 let token = 0;           // invalida timers antigos
@@ -284,8 +291,11 @@ const color = (i) => `var(--p${i})`;
 /* ---------- 3. Lógica ---------- */
 function defaultName(mode, i) { return mode === 1 ? 'Você' : `Jogador ${i + 1}`; }
 
-function buildPlayers(mode, names) {
-  if (mode === 1) return [{ name: names[0] || 'Você', cpu: false }, { name: 'Computador', cpu: true }];
+function buildPlayers(mode, names, humanFirst = true) {
+  if (mode === 1) {
+    const human = { name: names[0] || 'Você', cpu: false }, cpu = { name: 'Computador', cpu: true };
+    return humanFirst ? [human, cpu] : [cpu, human];   // a ordem do vetor é a ordem das jogadas
+  }
   return Array.from({ length: MODES[mode].n }, (_, i) => ({ name: names[i] || `Jogador ${i + 1}`, cpu: false }));
 }
 
@@ -412,10 +422,18 @@ function restart() {
   if (locked) return;
   token++; moves = []; overlayDismissed = false; prevLen = 0;
   render();
+  autoCpu();
+}
+// Se for a vez do computador (ex.: ele joga primeiro), inicia a jogada dele automaticamente.
+function autoCpu() {
+  const s = derive();
+  if (!s.finished && cfg.players[s.turn].cpu) startCpu();
 }
 
 /* ---------- 4. Configuração ---------- */
 function selectedMode() { return +document.querySelector('input[name=mode]:checked').value; }
+
+function updateFirstRow() { $('#firstRow').hidden = selectedMode() !== 1; }  // só existe contra o computador
 
 function renderNameInputs() {
   const mode = selectedMode();
@@ -439,7 +457,7 @@ function readForm() {
   const count = mode === 1 ? 1 : MODES[mode].n;
   const names = [];
   for (let i = 0; i < count; i++) names.push(($('#name' + i).value || '').trim());
-  return { mode, final: num('#fFinal'), min: num('#fMin'), max: num('#fMax'), names };
+  return { mode, final: num('#fFinal'), min: num('#fMin'), max: num('#fMax'), names, first: $('#fFirst').value };
 }
 
 function validate(f) {
@@ -471,6 +489,8 @@ function showSetup() {
   $('#game').hidden = true; $('#overlay').hidden = true; $('#setup').hidden = false;
   document.querySelector(`input[name=mode][value="${draft.mode}"]`).checked = true;
   $('#fFinal').value = draft.final; $('#fMin').value = draft.min; $('#fMax').value = draft.max;
+  $('#fFirst').value = draft.first;
+  updateFirstRow();
   renderNameInputs();
   showList($('#errors'), []); showList($('#notes'), []);
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -491,11 +511,12 @@ function startGame() {
   const { errors, notes } = validate(f);
   showList($('#errors'), errors); showList($('#notes'), notes);
   if (errors.length) return;
-  draft = { mode: f.mode, final: f.final, min: f.min, max: f.max, names: f.names.concat(['', '', '']).slice(0, 3) };
-  cfg = { mode: f.mode, final: f.final, min: f.min, max: f.max, players: buildPlayers(f.mode, f.names) };
+  draft = { mode: f.mode, final: f.final, min: f.min, max: f.max, names: f.names.concat(['', '', '']).slice(0, 3), first: f.first };
+  cfg = { mode: f.mode, final: f.final, min: f.min, max: f.max, players: buildPlayers(f.mode, f.names, f.first !== 'cpu') };
   token++; locked = false; moves = []; overlayDismissed = false; prevLen = 0; shownTotal = 0;
   $('#setup').hidden = true; $('#game').hidden = false;
   render();
+  autoCpu();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -528,7 +549,7 @@ function render() {
   // Regras
   const mname = cfg.mode === 1 ? 'Jogador × Computador' : cfg.mode === 2 ? '2 jogadores' : '3 jogadores';
   const rp = $('#rulesPill'); rp.innerHTML = '';
-  [['Modo', mname], ['Meta', cfg.final], ['Números', `${cfg.min} a ${cfg.max}`], ['Vitória', 'soma exata (passou = erro)']].forEach(([k, v]) => {
+  [['Modo', mname], ['Começa', cfg.players[0].name], ['Meta', cfg.final], ['Números', `${cfg.min} a ${cfg.max}`], ['Vitória', 'soma exata (passou = erro)']].forEach(([k, v]) => {
     const p = el('span', 'pill'); p.append(document.createTextNode(k + ': '), el('b', '', v)); rp.append(p);
   });
 
@@ -649,7 +670,7 @@ function confetti() {
 }
 
 /* ---------- 6. Eventos ---------- */
-document.querySelectorAll('input[name=mode]').forEach((r) => r.addEventListener('change', () => { draft.mode = selectedMode(); renderNameInputs(); }));
+document.querySelectorAll('input[name=mode]').forEach((r) => r.addEventListener('change', () => { draft.mode = selectedMode(); updateFirstRow(); renderNameInputs(); }));
 const randBtn = el('button', 'chip rand', '🎲 Gerar regras aleatórias');
 randBtn.type = 'button';
 randBtn.addEventListener('click', randomRules);
