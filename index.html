@@ -197,7 +197,7 @@
           <div id="cpuBox" class="cpu" hidden>
             <div class="slot" id="cpuNum">?</div>
             <p id="cpuMsg"></p>
-            <button class="btn primary" id="btnCpu" style="margin-top:12px">🎲 Sortear número do computador</button>
+            <button class="btn primary" id="btnCpu" style="margin-top:12px">🧠 Calcular jogada do computador</button>
           </div>
         </div>
       </div>
@@ -330,6 +330,46 @@ function humanPlay(value) {
   if (!n.finished && cfg.players[n.turn].cpu) startCpu(); // computador joga logo após o humano
 }
 
+/* Jogada ótima do computador (jogo de 2 jogadores: humano × computador).
+   "remaining" = quanto falta para a meta. Quem passa da meta perde.
+   W[r] = true  -> quem joga com r faltando vence jogando certo.
+   Ordem de preferência:
+     1) fechar a soma exata (vitória imediata);
+     2) levar o adversário a uma posição perdida (W falso);
+     3) se a posição já é perdida, escolher a jogada que deixa o adversário
+        com o MENOR número de respostas vencedoras (maior chance de ele errar);
+     4) se todos os números estouram a meta, não há saída: joga o mínimo.
+   Empates entre jogadas igualmente boas são decididos aleatoriamente. */
+function bestMove(remaining, min, max) {
+  const W = new Array(remaining + 1).fill(false);
+  for (let r = 1; r <= remaining; r++) {
+    if (r >= min && r <= max) { W[r] = true; continue; }
+    for (let v = min; v <= max && v < r; v++) { if (!W[r - v]) { W[r] = true; break; } }
+  }
+  const choose = (list) => list[Math.floor(Math.random() * list.length)];
+
+  if (remaining >= min && remaining <= max) return remaining;           // 1) vitória imediata
+
+  const safe = [];
+  for (let v = min; v <= max && v < remaining; v++) safe.push(v);       // jogadas que não estouram
+  if (!safe.length) return min;                                         // 4) sem saída
+
+  const winning = safe.filter((v) => !W[remaining - v]);                // 2) posição vencedora
+  if (winning.length) return choose(winning);
+
+  const replies = (r) => {                                              // 3) quantas respostas vencedoras o adversário teria
+    let c = 0;
+    for (let v = min; v <= max; v++) if (v === r || (v < r && !W[r - v])) c++;
+    return c;
+  };
+  let best = Infinity, pool = [];
+  for (const v of safe) {
+    const c = replies(remaining - v);
+    if (c < best) { best = c; pool = [v]; } else if (c === best) pool.push(v);
+  }
+  return choose(pool);
+}
+
 function startCpu() {
   const s = derive();
   if (locked || s.finished || !cfg.players[s.turn].cpu) return;
@@ -343,11 +383,8 @@ function startCpu() {
     clearInterval(iv);
     if (my !== token) return;
     const cur = derive();
-    // Sorteio real com Math.random. O computador nunca passa da meta por vontade própria:
-    // sorteia só entre os números que não estouram. Se TODOS estouram (sobrou menos que o mínimo),
-    // é obrigado a sortear no intervalo completo e acaba errando.
-    const pool = cur.safe.length ? cur.safe : cur.range;
-    const pick = pool[Math.floor(Math.random() * pool.length)];
+    // O número mostrado girando na animação é só visual; a jogada real é calculada por bestMove().
+    const pick = bestMove(cfg.final - cur.total, cfg.min, cfg.max);
     slot.textContent = pick;
     slot.className = 'slot reveal';
     setTimeout(() => {
@@ -544,7 +581,7 @@ function render() {
   cpuBox.hidden = !cpuTurn;
   if (cpuTurn) {
     $('#btnCpu').hidden = locked;
-    $('#cpuMsg').textContent = locked ? 'Sorteando um número…' : 'O computador está pronto para sortear.';
+    $('#cpuMsg').textContent = locked ? 'Calculando a melhor jogada…' : 'O computador está pronto para calcular a jogada.';
     if (!locked) { const sl = $('#cpuNum'); sl.className = 'slot'; sl.textContent = '?'; }
   } else {
     for (let v = cfg.min; v <= cfg.max; v++) {
